@@ -9,6 +9,9 @@ class Program
 {
     static async Task Main(string[] args)
     {
+        AnsiConsole.Write(new FigletText("Content Finder"));
+        AnsiConsole.Write(new Paragraph($"This program will recursively scan every sub-directory and read every files' contents in search for a specific string. As such, this can be a resource intensive application.{Environment.NewLine}", new Style(Color.DarkOrange)));
+
         while (true)
         {
             var directoryPath = AnsiConsole
@@ -34,6 +37,9 @@ class Program
             var tasks = new List<Task>();
             var directoriesToScan = new ConcurrentQueue<string>();
             var directoriesToScanProgress = new ConcurrentDictionary<string, ProgressTask>();
+
+            AnsiConsole.Write(new Text("Press any key to begin...", new Style(Color.Cyan1)));
+            Console.ReadKey();
 
             await AnsiConsole.Progress()
                 .Columns(new ProgressColumn[]
@@ -142,9 +148,11 @@ class Program
                     }
                 });
 
+            AnsiConsole.Write(new Text($"Scan finished.{Environment.NewLine}", new Style(Color.Cyan1)));
+
             ShowResults(search, matchingFiles);
 
-            AnsiConsole.WriteLine("Press any key to start over.");
+            AnsiConsole.Write(new Text("Press any key to start over...", new Style(Color.Cyan1)));
             Console.ReadKey();
         }
     }
@@ -153,13 +161,6 @@ class Program
     {
         int maxLen = search.Length * 2;
         int startIndex = line.IndexOf(search, StringComparison.InvariantCultureIgnoreCase);
-
-        if (startIndex < 0)
-        {
-            // If the search term is not found in the line, return the first maxLen characters of the line.
-            // Shouldn't happen though.
-            return line.Substring(0, Math.Min(maxLen, line.Length)).Replace(' ', '.');
-        }
 
         int endIndex = startIndex + search.Length;
 
