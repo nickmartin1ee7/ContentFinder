@@ -26,21 +26,29 @@ class Program
                 directoryPath = newDirectoryPath;
             }
 
-            var searchString = AnsiConsole
+            var search = AnsiConsole
                 .Prompt(new TextPrompt<string>("Enter search string:")
                     .PromptStyle(new Style(Color.Blue)));
 
-            var matchingFiles = new ConcurrentBag<string>();
+            var matchingFiles = new ConcurrentBag<(string fileName, string content)>();
             var tasks = new List<Task>();
             var directoriesToScan = new ConcurrentQueue<string>();
+            var directoriesToScanProgress = new ConcurrentDictionary<string, ProgressTask>();
 
-            var prefix = $"Searching for \"{searchString}\"...";
-
-            await AnsiConsole.Status()
-                .StartAsync(prefix, async ctx =>
+            await AnsiConsole.Progress()
+                .Columns(new ProgressColumn[]
+                {
+                    new TaskDescriptionColumn(),
+                    new ProgressBarColumn(),
+                    new PercentageColumn(),
+                    new ElapsedTimeColumn(),
+                    new SpinnerColumn(),
+                })
+                .StartAsync(async ctx =>
                 {
                     // Enqueue root directory
                     directoriesToScan.Enqueue(directoryPath);
+                    directoriesToScanProgress.TryAdd(directoryPath, ctx.AddTask(directoryPath));
 
                     while (directoriesToScan.TryDequeue(out var currentDirectory))
                     {
@@ -50,6 +58,7 @@ class Program
                             foreach (var subDirectory in subDirectories)
                             {
                                 directoriesToScan.Enqueue(subDirectory);
+                                directoriesToScanProgress.TryAdd(subDirectory, ctx.AddTask(subDirectory));
                             }
                         }
                         catch (IOException)
@@ -66,80 +75,110 @@ class Program
                         }
 
                         tasks.Add(Task.Run(async () =>
-                        {
-                            ctx.Status = $"{prefix} {currentDirectory}";
-                            ctx.Refresh();
-
-                            var foundMatches = false;
-
-                            try
                             {
-                                foreach (var file in Directory.EnumerateFiles(currentDirectory, "*"))
+                                if (!directoriesToScanProgress.TryGetValue(currentDirectory, out var directoryProgress))
+                                    return;
+
+                                var foundMatches = false;
+                                directoryProgress.StartTask();
+                                ctx.Refresh();
+
+                                try
                                 {
-                                    using var streamReader = new StreamReader(file);
+                                    var files = Directory.EnumerateFiles(currentDirectory, "*").ToArray();
 
-                                    while (await streamReader.ReadLineAsync() is { } line)
+                                    for (var i = 0; i < files.Length; i++)
                                     {
-                                        if (!line.Contains(searchString))
-                                            continue;
+                                        var file = files[i];
+                                        using var streamReader = new StreamReader(file);
 
-                                        matchingFiles.Add(file);
-                                        foundMatches = true;
-                                        break;
+                                        while (await streamReader.ReadLineAsync() is { } line)
+                                        {
+                                            if (!line.Contains(search))
+                                                continue;
+
+                                            matchingFiles.Add((file, LimitContentPeek(search, line)));
+                                            foundMatches = true;
+                                            break;
+                                        }
+
+                                        directoryProgress.Increment(i / (double)files.Length * 100);
+                                        ctx.Refresh();
                                     }
                                 }
-                            }
-                            catch (IOException)
-                            {
-                                // Suppress
-                            }
-                            catch (UnauthorizedAccessException ex)
-                            {
-                                // Suppress
-                            }
-                            catch (Exception ex)
-                            {
-                                AnsiConsole.WriteException(ex);
-                            }
+                                catch (IOException)
+                                {
+                                    // Suppress
+                                }
+                                catch (UnauthorizedAccessException ex)
+                                {
+                                    // Suppress
+                                }
+                                catch (Exception ex)
+                                {
+                                    AnsiConsole.WriteException(ex);
+                                }
 
-                            var outputSb = new StringBuilder($"Scanned: {currentDirectory}");
+                                if (foundMatches)
+                                {
+                                    var outputSb = new StringBuilder($"Scanned: {currentDirectory}");
 
-                            if (foundMatches)
-                            {
-                                outputSb.Append(" (FOUND MATCHES)");
-                                outputSb.Append(Environment.NewLine);
-                                AnsiConsole.Write(new Text(outputSb.ToString(), new Style(Color.Green)));
-                            }
-                            else
-                            {
-                                outputSb.Append(Environment.NewLine);
-                                AnsiConsole.Write(new Text(outputSb.ToString(), new Style(Color.Grey)));
-                            }
+                                    outputSb.Append(" (FOUND MATCHES)");
+                                    outputSb.Append(Environment.NewLine);
+                                    AnsiConsole.Write(new Text(outputSb.ToString(), new Style(Color.Green)));
+                                }
 
-                            ctx.Refresh();
-                        }));
+                                directoryProgress.Increment(100);
+                                directoryProgress.StopTask();
+                                ctx.Refresh();
+                            }));
 
                         Task.WaitAll(tasks.ToArray());
                     }
                 });
 
-            ShowResults(searchString, matchingFiles);
+            ShowResults(search, matchingFiles);
 
             AnsiConsole.WriteLine("Press any key to start over.");
             Console.ReadKey();
         }
     }
 
-    private static void ShowResults(string searchString, IEnumerable<string> matchingFiles)
+    private static string LimitContentPeek(string search, string line)
+    {
+        int maxLen = search.Length * 2;
+        int startIndex = line.IndexOf(search, StringComparison.InvariantCultureIgnoreCase);
+
+        if (startIndex < 0)
+        {
+            // If the search term is not found in the line, return the first maxLen characters of the line.
+            // Shouldn't happen though.
+            return line.Substring(0, Math.Min(maxLen, line.Length)).Replace(' ', '.');
+        }
+
+        int endIndex = startIndex + search.Length;
+
+        // Calculate the start and end indices for the substring to be returned.
+        int startPeek = Math.Max(0, startIndex - maxLen / 2);
+        int endPeek = Math.Min(line.Length, endIndex + maxLen / 2);
+
+        return line[startPeek..endPeek].Replace(' ', '.');
+    }
+
+    private static void ShowResults(string searchString, IEnumerable<(string, string)> matchingFiles)
     {
         var table = new Table().Title($"Files containing \"{searchString}\"").BorderColor(Color.Grey);
 
         table.AddColumn(new TableColumn("File").Centered());
-        table.AddColumn(new TableColumn("Full Path").Centered());
+        table.AddColumn(new TableColumn("Full Path").LeftAligned());
+        table.AddColumn(new TableColumn("Content Peek").LeftAligned());
 
-        foreach (var fullPathFile in matchingFiles)
+        foreach (var fileContentPair in matchingFiles)
         {
-            table.AddRow(fullPathFile[(fullPathFile.LastIndexOf('\\') + 1)..], fullPathFile);
+            table.AddRow(
+                fileContentPair.Item1[(fileContentPair.Item1.LastIndexOf('\\') + 1)..],
+                fileContentPair.Item1,
+                fileContentPair.Item2);
         }
 
         AnsiConsole.Write(table);
