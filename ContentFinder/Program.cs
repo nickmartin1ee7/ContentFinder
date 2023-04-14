@@ -152,7 +152,7 @@ class Program
 
             ShowResults(search, matchingFiles);
 
-            AnsiConsole.Write(new Text("Press any key to start over...", new Style(Color.Cyan1)));
+            AnsiConsole.Write(new Text($"Press any key to start over...{Environment.NewLine}", new Style(Color.Cyan1)));
             Console.ReadKey();
         }
     }
