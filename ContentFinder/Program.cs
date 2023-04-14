@@ -58,27 +58,30 @@ class Program
 
                     while (directoriesToScan.TryDequeue(out var currentDirectory))
                     {
-                        try
+                        tasks.Add(Task.Run(async () =>
                         {
-                            var subDirectories = Directory.EnumerateDirectories(currentDirectory);
-                            foreach (var subDirectory in subDirectories)
+                            try
                             {
-                                directoriesToScan.Enqueue(subDirectory);
-                                directoriesToScanProgress.TryAdd(subDirectory, ctx.AddTask(subDirectory));
+                                var subDirectories = Directory.EnumerateDirectories(currentDirectory);
+                                foreach (var subDirectory in subDirectories)
+                                {
+                                    directoriesToScan.Enqueue(subDirectory);
+                                    directoriesToScanProgress.TryAdd(subDirectory, ctx.AddTask(subDirectory));
+                                }
                             }
-                        }
-                        catch (IOException)
-                        {
-                            // Suppress
-                        }
-                        catch (UnauthorizedAccessException ex)
-                        {
-                            // Suppress
-                        }
-                        catch (Exception ex)
-                        {
-                            AnsiConsole.WriteException(ex);
-                        }
+                            catch (IOException)
+                            {
+                                // Suppress
+                            }
+                            catch (UnauthorizedAccessException ex)
+                            {
+                                // Suppress
+                            }
+                            catch (Exception ex)
+                            {
+                                AnsiConsole.WriteException(ex);
+                            }
+                        }));
 
                         tasks.Add(Task.Run(async () =>
                             {
@@ -86,6 +89,7 @@ class Program
                                     return;
 
                                 var foundMatches = false;
+
                                 directoryProgress.StartTask();
 
                                 try
@@ -145,6 +149,7 @@ class Program
                             }));
 
                         Task.WaitAll(tasks.ToArray());
+                        tasks.Clear();
                     }
                 });
 
