@@ -119,14 +119,22 @@ class Program
                                     AnsiConsole.WriteException(ex);
                                 }
 
+                                var outputSb = new StringBuilder($"Scanned: {currentDirectory}");
+
                                 if (foundMatches)
                                 {
-                                    var outputSb = new StringBuilder($"Scanned: {currentDirectory}");
 
                                     outputSb.Append(" (FOUND MATCHES)");
                                     outputSb.Append(Environment.NewLine);
                                     AnsiConsole.Write(new Text(outputSb.ToString(), new Style(Color.Green)));
                                 }
+#if DEBUG // Can be rather verbose and jittery
+                                else
+                                {
+                                    outputSb.Append(Environment.NewLine);
+                                    AnsiConsole.Write(new Text(outputSb.ToString(), new Style(Color.Grey)));
+                                }
+#endif
 
                                 directoryProgress.Increment(100);
                                 directoryProgress.StopTask();
