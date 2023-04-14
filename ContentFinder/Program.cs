@@ -81,7 +81,6 @@ class Program
 
                                 var foundMatches = false;
                                 directoryProgress.StartTask();
-                                ctx.Refresh();
 
                                 try
                                 {
@@ -103,7 +102,6 @@ class Program
                                         }
 
                                         directoryProgress.Increment(i / (double)files.Length * 100);
-                                        ctx.Refresh();
                                     }
                                 }
                                 catch (IOException)
@@ -138,7 +136,6 @@ class Program
 
                                 directoryProgress.Increment(100);
                                 directoryProgress.StopTask();
-                                ctx.Refresh();
                             }));
 
                         Task.WaitAll(tasks.ToArray());
