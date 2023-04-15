@@ -10,7 +10,10 @@ class Program
     static async Task Main(string[] args)
     {
         AnsiConsole.Write(new FigletText("Content Finder"));
-        AnsiConsole.Write(new Paragraph($"This program will recursively scan every sub-directory and read every files' contents in search for a specific string. As such, this can be a resource intensive application.{Environment.NewLine}", new Style(Color.DarkOrange)));
+        AnsiConsole.Write(new Paragraph("This program will recursively scan every sub-directory and read every files' contents in search for a specific string." +
+                                        "As such, this can be a resource intensive application." +
+                                        "Files above 1 GB are skipped." +
+                                        $"{Environment.NewLine}", new Style(Color.DarkOrange)));
 
         while (true)
         {
@@ -42,6 +45,7 @@ class Program
             Console.ReadKey();
 
             await AnsiConsole.Progress()
+                .AutoClear(true)
                 .Columns(new ProgressColumn[]
                 {
                     new TaskDescriptionColumn(),
@@ -99,6 +103,13 @@ class Program
                                     for (var i = 0; i < files.Length; i++)
                                     {
                                         var file = files[i];
+
+                                        var fileInfo = new FileInfo(file);
+
+                                        const long GIGABYTE = 1_073_741_824;
+                                        if (fileInfo.Length > GIGABYTE)
+                                            continue;
+
                                         using var streamReader = new StreamReader(file);
 
                                         while (await streamReader.ReadLineAsync() is { } line)
@@ -131,7 +142,6 @@ class Program
 
                                 if (foundMatches)
                                 {
-
                                     outputSb.Append(" (FOUND MATCHES)");
                                     outputSb.Append(Environment.NewLine);
                                     AnsiConsole.Write(new Text(outputSb.ToString(), new Style(Color.Green)));
