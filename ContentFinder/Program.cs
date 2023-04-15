@@ -160,7 +160,7 @@ class Program
 
             await AnsiConsole.Progress()
                 .AutoClear(true)
-                .HideCompleted(true)
+                //.HideCompleted(true)
                 .Columns(new ProgressColumn[]
                 {
                     new TaskDescriptionColumn(),
