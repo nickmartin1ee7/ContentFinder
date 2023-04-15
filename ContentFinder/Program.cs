@@ -7,8 +7,16 @@ namespace ContentFinder;
 
 class Program
 {
+    private static CancellationTokenSource _cts = new();
+
     static async Task Main(string[] args)
     {
+        Console.CancelKeyPress += (o, e) =>
+        {
+            e.Cancel = true;
+            _cts.Cancel();
+        };
+
         AnsiConsole.Write(new FigletText("Content Finder"));
         AnsiConsole.Write(new Paragraph("This program will recursively scan every sub-directory and read every files' contents in search for a specific string." +
                                         "As such, this can be a resource intensive application." +
@@ -41,8 +49,14 @@ class Program
             var directoriesToScan = new ConcurrentQueue<string>();
             var directoriesToScanProgress = new ConcurrentDictionary<string, ProgressTask>();
 
+            AnsiConsole.Write(new Text("You can press CTRL+C to stop early. ", new Style(Color.Cyan1)));
             AnsiConsole.Write(new Text("Press any key to begin...", new Style(Color.Cyan1)));
             Console.ReadKey();
+
+            if (!_cts.IsCancellationRequested)
+                _cts.Cancel();
+
+            _cts = new CancellationTokenSource();
 
             await AnsiConsole.Progress()
                 .AutoClear(true)
@@ -58,9 +72,8 @@ class Program
                 {
                     // Enqueue root directory
                     directoriesToScan.Enqueue(directoryPath);
-                    directoriesToScanProgress.TryAdd(directoryPath, ctx.AddTask(directoryPath));
 
-                    while (directoriesToScan.TryDequeue(out var currentDirectory))
+                    while (!_cts.IsCancellationRequested && directoriesToScan.TryDequeue(out var currentDirectory))
                     {
                         tasks.Add(Task.Run(async () =>
                         {
@@ -69,8 +82,11 @@ class Program
                                 var subDirectories = Directory.EnumerateDirectories(currentDirectory);
                                 foreach (var subDirectory in subDirectories)
                                 {
+                                    if (_cts.IsCancellationRequested)
+                                        break;
+
                                     directoriesToScan.Enqueue(subDirectory);
-                                    directoriesToScanProgress.TryAdd(subDirectory, ctx.AddTask(subDirectory));
+                                    directoriesToScanProgress.TryAdd(subDirectory, null);
                                 }
                             }
                             catch (IOException)
@@ -92,6 +108,9 @@ class Program
                                 if (!directoriesToScanProgress.TryGetValue(currentDirectory, out var directoryProgress))
                                     return;
 
+                                _ = directoriesToScanProgress.TryRemove(currentDirectory, out _);
+                                _ = directoriesToScanProgress.TryAdd(currentDirectory, directoryProgress = ctx.AddTask(currentDirectory));
+
                                 var foundMatches = false;
 
                                 directoryProgress.StartTask();
@@ -102,6 +121,9 @@ class Program
 
                                     for (var i = 0; i < files.Length; i++)
                                     {
+                                        if (_cts.IsCancellationRequested)
+                                            break;
+
                                         var file = files[i];
 
                                         var fileInfo = new FileInfo(file);
@@ -112,9 +134,9 @@ class Program
 
                                         using var streamReader = new StreamReader(file);
 
-                                        while (await streamReader.ReadLineAsync() is { } line)
+                                        while (!_cts.IsCancellationRequested && await streamReader.ReadLineAsync() is { } line)
                                         {
-                                            if (!line.Contains(search))
+                                            if (!line.Contains(search, StringComparison.Ordinal))
                                                 continue;
 
                                             matchingFiles.Add((file, LimitContentPeek(search, line)));
@@ -183,7 +205,8 @@ class Program
         int startPeek = Math.Max(0, startIndex - maxLen / 2);
         int endPeek = Math.Min(line.Length, endIndex + maxLen / 2);
 
-        return line[startPeek..endPeek].Replace(' ', '.');
+        var result = line[startPeek..endPeek].Replace(' ', '.');
+        return result;
     }
 
     private static void ShowResults(string searchString, IEnumerable<(string, string)> matchingFiles)
@@ -196,10 +219,19 @@ class Program
 
         foreach (var fileContentPair in matchingFiles)
         {
-            table.AddRow(
-                fileContentPair.Item1[(fileContentPair.Item1.LastIndexOf('\\') + 1)..],
-                fileContentPair.Item1,
-                fileContentPair.Item2);
+            try
+            {
+                table.AddRow(
+                    fileContentPair.Item1[(fileContentPair.Item1.LastIndexOf('\\') + 1)..],
+                    fileContentPair.Item1,
+                    fileContentPair.Item2);
+
+            }
+            catch (Exception e)
+            {
+                AnsiConsole.Write(new Text($"Match found in: {fileContentPair.Item1}, but failed to display.", new Style(Color.Red)));
+                AnsiConsole.WriteException(e);
+            }
         }
 
         AnsiConsole.Write(table);
