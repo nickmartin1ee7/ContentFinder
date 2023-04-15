@@ -8,6 +8,12 @@ namespace ContentFinder;
 class Program
 {
     private static CancellationTokenSource _cts = new();
+    private static Style _blue = new(Color.Blue);
+    private static Style _grey = new(Color.Grey);
+    private static Style _darkOrange = new(Color.DarkOrange);
+    private static Style _cyan = new(Color.Cyan1);
+    private static Style _green = new(Color.Green);
+    private static Style _red = new(Color.Red);
 
     static async Task Main(string[] args)
     {
@@ -21,14 +27,14 @@ class Program
         AnsiConsole.Write(new Paragraph("This program will recursively scan every sub-directory and read every files' contents in search for a specific string. " +
                                         "As such, this can be a resource intensive application. " +
                                         "Files above 1 GB are skipped. " +
-                                        $"{Environment.NewLine}", new Style(Color.DarkOrange)));
+                                        $"{Environment.NewLine}", _darkOrange));
 
         while (true)
         {
             var directoryPath = AnsiConsole
                 .Prompt(new TextPrompt<string>("Enter directory path:")
                     .Validate(Directory.Exists)
-                    .PromptStyle(new Style(Color.Blue)));
+                    .PromptStyle(_blue));
 
             // Correct directory path
             var newDirectoryPath = new DirectoryInfo(directoryPath).FullName;
@@ -36,21 +42,21 @@ class Program
             if (newDirectoryPath != directoryPath)
             {
                 AnsiConsole.Write(new Text($"Correcting directory path to: {newDirectoryPath}{Environment.NewLine}",
-                    new Style(Color.Grey)));
+                    _grey));
                 directoryPath = newDirectoryPath;
             }
 
             var search = AnsiConsole
                 .Prompt(new TextPrompt<string>("Enter search string:")
-                    .PromptStyle(new Style(Color.Blue)));
+                    .PromptStyle(_blue));
 
             var matchingFiles = new ConcurrentBag<(string fileName, string content)>();
             var tasks = new List<Task>();
             var directoriesToScan = new ConcurrentQueue<string>();
             var directoriesToScanProgress = new ConcurrentDictionary<string, ProgressTask>();
 
-            AnsiConsole.Write(new Text("You can press CTRL+C to stop early. ", new Style(Color.Cyan1)));
-            AnsiConsole.Write(new Text("Press any key to begin...", new Style(Color.Cyan1)));
+            AnsiConsole.Write(new Text("You can press CTRL+C to stop early. ", _cyan));
+            AnsiConsole.Write(new Text("Press any key to begin...", _cyan));
             Console.ReadKey();
 
             if (!_cts.IsCancellationRequested)
@@ -130,7 +136,10 @@ class Program
 
                                         const long GIGABYTE = 1_073_741_824;
                                         if (fileInfo.Length > GIGABYTE)
+                                        {
+                                            AnsiConsole.Write(new Text($"Skipping {fileInfo.FullName}. Too big!", _grey));
                                             continue;
+                                        }
 
                                         using var streamReader = new StreamReader(file);
 
@@ -166,13 +175,13 @@ class Program
                                 {
                                     outputSb.Append(" (FOUND MATCHES)");
                                     outputSb.Append(Environment.NewLine);
-                                    AnsiConsole.Write(new Text(outputSb.ToString(), new Style(Color.Green)));
+                                    AnsiConsole.Write(new Text(outputSb.ToString(), _green));
                                 }
 #if DEBUG // Can be rather verbose and jittery
                                 else
                                 {
                                     outputSb.Append(Environment.NewLine);
-                                    AnsiConsole.Write(new Text(outputSb.ToString(), new Style(Color.Grey)));
+                                    AnsiConsole.Write(new Text(outputSb.ToString(), _grey));
                                 }
 #endif
 
@@ -185,11 +194,11 @@ class Program
                     }
                 });
 
-            AnsiConsole.Write(new Text($"Scan finished.{Environment.NewLine}", new Style(Color.Cyan1)));
+            AnsiConsole.Write(new Text($"Scan finished.{Environment.NewLine}", _cyan));
 
             ShowResults(search, matchingFiles);
 
-            AnsiConsole.Write(new Text($"Press any key to start over...{Environment.NewLine}", new Style(Color.Cyan1)));
+            AnsiConsole.Write(new Text($"Press any key to start over...{Environment.NewLine}", _cyan));
             Console.ReadKey();
         }
     }
@@ -222,14 +231,14 @@ class Program
             try
             {
                 table.AddRow(
-                    fileContentPair.Item1[(fileContentPair.Item1.LastIndexOf('\\') + 1)..],
-                    fileContentPair.Item1,
-                    fileContentPair.Item2);
+                    new Text(fileContentPair.Item1[(fileContentPair.Item1.LastIndexOf('\\') + 1)..]),
+                    new Text(fileContentPair.Item1),
+                    new Text(fileContentPair.Item2, _grey));
 
             }
             catch (Exception e)
             {
-                AnsiConsole.Write(new Text($"Match found in: {fileContentPair.Item1}, but failed to display.", new Style(Color.Red)));
+                AnsiConsole.Write(new Text($"Match found in: {fileContentPair.Item1}, but failed to display.", _red));
                 AnsiConsole.WriteException(e);
             }
         }
