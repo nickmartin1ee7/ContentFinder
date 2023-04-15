@@ -19,8 +19,11 @@ class Program
     {
         Console.CancelKeyPress += (o, e) =>
         {
-            e.Cancel = true;
+            e.Cancel = !_cts.IsCancellationRequested; // Don't terminate if token is in use; we need to clean-up.
             _cts.Cancel();
+
+            if (!e.Cancel)
+                Environment.Exit(0);
         };
 
         AnsiConsole.Write(new FigletText("Content Finder"));
@@ -31,6 +34,8 @@ class Program
 
         while (true)
         {
+            _cts.Cancel();
+
             var directoryPath = AnsiConsole
                 .Prompt(new TextPrompt<string>("Enter directory path:")
                     .Validate(Directory.Exists)
@@ -58,9 +63,6 @@ class Program
             AnsiConsole.Write(new Text("You can press CTRL+C to stop early. ", _cyan));
             AnsiConsole.Write(new Text("Press any key to begin...", _cyan));
             Console.ReadKey();
-
-            if (!_cts.IsCancellationRequested)
-                _cts.Cancel();
 
             _cts = new CancellationTokenSource();
 
@@ -193,6 +195,9 @@ class Program
                         tasks.Clear();
                     }
                 });
+
+            if (!_cts.IsCancellationRequested)
+                _cts.Cancel();
 
             AnsiConsole.Write(new Text($"Scan finished.{Environment.NewLine}", _cyan));
 
