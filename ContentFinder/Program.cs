@@ -18,9 +18,9 @@ class Program
         };
 
         AnsiConsole.Write(new FigletText("Content Finder"));
-        AnsiConsole.Write(new Paragraph("This program will recursively scan every sub-directory and read every files' contents in search for a specific string." +
-                                        "As such, this can be a resource intensive application." +
-                                        "Files above 1 GB are skipped." +
+        AnsiConsole.Write(new Paragraph("This program will recursively scan every sub-directory and read every files' contents in search for a specific string. " +
+                                        "As such, this can be a resource intensive application. " +
+                                        "Files above 1 GB are skipped. " +
                                         $"{Environment.NewLine}", new Style(Color.DarkOrange)));
 
         while (true)
