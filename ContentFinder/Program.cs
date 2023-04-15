@@ -77,7 +77,8 @@ class Program
 
                     tasks.Add(Task.Run(async () =>
                     {
-                        if (!directoriesToScanProgress.TryGetValue(currentDirectory, out var directoryProgress)) return;
+                        if (!directoriesToScanProgress.TryGetValue(currentDirectory, out var directoryProgress))
+                            return;
 
                         _ = directoriesToScanProgress.TryRemove(currentDirectory, out _);
                         _ = directoriesToScanProgress.TryAdd(currentDirectory, directoryProgress = ctx.AddTask(currentDirectory));
@@ -159,6 +160,7 @@ class Program
 
             await AnsiConsole.Progress()
                 .AutoClear(true)
+                .HideCompleted(true)
                 .Columns(new ProgressColumn[]
                 {
                     new TaskDescriptionColumn(),
@@ -194,7 +196,7 @@ class Program
 
     private static void PrintPrepareToStart()
     {
-        AnsiConsole.Write(new Text($"You can press CTRL+C to stop early. ", s_styleCache[Color.Cyan1]));
+        AnsiConsole.Write(new Text("You can press CTRL+C to stop early. ", s_styleCache[Color.Cyan1]));
         AnsiConsole.Write(new Text($"Press any key to begin...{Environment.NewLine}", s_styleCache[Color.Cyan1]));
     }
 
