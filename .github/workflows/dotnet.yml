@@ -11,6 +11,7 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest]
+        runtime: [win-x64, linux-x64]
 
     steps:
       - name: Checkout code
@@ -25,19 +26,8 @@ jobs:
         id: versioning
         run: echo "::set-output name=version::${{ github.run_id }}"
 
-      - name: Determine runtime
-        id: runtime
-        run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            echo "::set-output name=runtime::win-x64"
-          else
-            echo "::set-output name=runtime::linux-x64"
-          fi
-        shell: bash
-
       - name: Build and publish
-        run: dotnet publish -r ${{ steps.runtime.outputs.runtime }} -c Release --self-contained true -p:PublishSingleFile=true ./ContentFinder/ContentFinder.csproj
-        shell: bash
+        run: dotnet publish -r ${{ matrix.runtime }} -c Release --self-contained true -p:PublishSingleFile=true ./ContentFinder/ContentFinder.csproj
 
       - name: Determine file extension
         id: file-extension
@@ -47,13 +37,12 @@ jobs:
           else
             echo "::set-output name=extension::"
           fi
-        shell: bash
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v2
         with:
           name: ContentFinder
-          path: ./ContentFinder/bin/Release/net6.0/${{ steps.runtime.outputs.runtime }}/publish/ContentFinder${{ steps.file-extension.outputs.extension }}
+          path: ./ContentFinder/bin/Release/net6.0/${{ matrix.runtime }}/publish/ContentFinder${{ steps.file-extension.outputs.extension }}
 
   release:
     needs: build
