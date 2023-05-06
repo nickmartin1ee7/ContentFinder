@@ -26,7 +26,7 @@ jobs:
       run: echo ::set-output name=version::$(dotnet --version)
 
     - name: Build and publish
-      run: dotnet publish -r ${{ matrix.runtime }} -c Release --self-contained true -p:PublishSingleFile=true
+      run: dotnet publish -r ${{ matrix.runtime }} -c Release --self-contained true -p:PublishSingleFile=true ContentFinder.sln
 
     - name: Determine file extension
       id: file-extension
@@ -37,7 +37,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: ContentFinder
-        path: ./bin/Release/net6.0/publish/ContentFinder$${{ steps.file-extension.outputs.extension }}
+        path: ./ContentFinder/bin/Release/net6.0/publish/ContentFinder$${{ steps.file-extension.outputs.extension }}
 
   release:
     needs: build
