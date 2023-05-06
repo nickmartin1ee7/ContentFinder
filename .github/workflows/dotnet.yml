@@ -28,7 +28,7 @@ jobs:
       - name: Determine runtime
         id: runtime
         run: |
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             echo "::set-output name=runtime::win-x64"
           else
             echo "::set-output name=runtime::linux-x64"
@@ -40,7 +40,7 @@ jobs:
       - name: Determine file extension
         id: file-extension
         run: |
-          echo "::set-output name=extension::$(if [ "${{ matrix.os }}" = "windows-latest" ]; then echo 'exe'; else echo ''; fi)"
+          echo "::set-output name=extension::$(if [[ "${{ matrix.os }}" == "windows-latest" ]]; then echo 'exe'; else echo ''; fi)"
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v2
