@@ -28,7 +28,7 @@ jobs:
       - name: Determine runtime
         id: runtime
         run: |
-          if [[ ${{ matrix.os }} == 'windows-latest' ]]; then
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
             echo "::set-output name=runtime::win-x64"
           else
             echo "::set-output name=runtime::linux-x64"
@@ -40,13 +40,13 @@ jobs:
       - name: Determine file extension
         id: file-extension
         run: |
-          echo "::set-output name=extension::$(if [[ ${{ matrix.os }} == 'windows-latest' ]]; then echo 'exe'; else echo ''; fi)"
+          echo "::set-output name=extension::$(if [ "${{ matrix.os }}" = "windows-latest" ]; then echo 'exe'; else echo ''; fi)"
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v2
         with:
           name: ContentFinder
-          path: ./ContentFinder/bin/Release/net6.0/publish/ContentFinder$${{ steps.file-extension.outputs.extension }}
+          path: ./ContentFinder/bin/Release/net6.0/publish/ContentFinder${{ steps.file-extension.outputs.extension }}
 
   release:
     needs: build
@@ -85,6 +85,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./ContentFinder$${{ steps.file-extension.outputs.extension }}
-          asset_name: ContentFinder$${{ steps.file-extension.outputs.extension }}
+          asset_path: ./ContentFinder${{ steps.file-extension.outputs.extension }}
+          asset_name: ContentFinder${{ steps.file-extension.outputs.extension }}
           asset_content_type: application/octet-stream
