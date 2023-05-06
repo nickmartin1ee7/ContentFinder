@@ -66,35 +66,12 @@ jobs:
         with:
           name: ContentFinder
 
-      - name: Get Previous tag
-        id: previoustag
-        uses: 'WyriHaximus/github-action-get-previous-tag@v1'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Get next version
-        id: next
-        uses: 'WyriHaximus/github-action-next-release-version@1.0.0'
+      - name: GitHub Publish - Release
+        uses: softprops/action-gh-release@v1      
         with:
-          version: ${{ steps.previoustag.outputs.tag }}
-
-      - name: Create release
-        id: create_release_id
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ steps.next.outputs.version }}
-          release_name: Release ${{ steps.next.outputs.version }}
-          body: |
-            Release version ${{ steps.versioning.outputs.version }}
-            
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./ContentFinder${{ steps.file-extension.outputs.extension }}
-          asset_name: ContentFinder${{ steps.file-extension.outputs.extension }}
-          asset_content_type: application/octet-stream
+          tag_name: ${{ github.workflow }}
+          name: Release v${{ github.run_number }}
+          draft: false
+          prerelease: true
+          files:
+            ContentFinder${{ steps.file-extension.outputs.extension }}
