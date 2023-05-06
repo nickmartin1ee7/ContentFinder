@@ -26,7 +26,6 @@ jobs:
         run: echo "::set-output name=version::${{ github.run_id }}"
 
       - name: Build and publish
-        shell: bash
         run: |
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             dotnet publish -r win-x64 -c Release --self-contained true -p:PublishSingleFile=true ./ContentFinder/ContentFinder.csproj
@@ -35,7 +34,6 @@ jobs:
           fi
 
       - name: Determine file extension
-        shell: bash
         id: file-extension
         run: |
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
@@ -49,9 +47,7 @@ jobs:
         with:
           name: ContentFinder
           path: |
-            ./ContentFinder/bin/Release/net6.0/
-            ${{ matrix.os }}-x64/
-            publish/ContentFinder${{ steps.file-extension.outputs.extension }}
+            ./ContentFinder/bin/Release/net6.0/publish/ContentFinder${{ steps.file-extension.outputs.extension }}
 
   release:
     needs: build
