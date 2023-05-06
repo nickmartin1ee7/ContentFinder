@@ -1,0 +1,81 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 6.0.x
+
+    - name: Determine current version
+      id: versioning
+      run: echo ::set-output name=version::$(dotnet --version)
+
+    - name: Build and publish
+      run: dotnet publish -r ${{ matrix.runtime }} -c Release --self-contained true -p:PublishSingleFile=true
+
+    - name: Determine file extension
+      id: file-extension
+      run: |
+        echo "::set-output name=extension::$(if [[ ${{ matrix.os }} == 'windows-latest' ]]; then echo 'exe'; else echo ''; fi)"
+
+    - name: Upload release artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: ContentFinder
+        path: ./bin/Release/net6.0/publish/ContentFinder$${{ steps.file-extension.outputs.extension }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Download release artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: ContentFinder
+
+    - name: Determine next version
+      id: versioning
+      run: |
+        echo "Current version: ${{ steps.versioning.outputs.version }}"
+        echo "::set-output name=version::$(echo ${{ steps.versioning.outputs.version }} | awk -F. -v OFS=. '{$NF = $NF + 1;} 1')"
+
+    - name: Create release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ steps.versioning.outputs.version }}
+        release_name: Release ${{ steps.versioning.outputs.version }}
+        body: |
+          Release version ${{ steps.versioning.outputs.version }}
+        draft: false
+        prerelease: false
+
+    - name: Upload release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./ContentFinder$${{ steps.file-extension.outputs.extension }}
+        asset_name: ContentFinder$${{ steps.file-extension.outputs.extension }}
+        asset_content_type: application/octet-stream
