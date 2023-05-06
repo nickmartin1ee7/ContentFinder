@@ -23,7 +23,7 @@ jobs:
 
       - name: Determine current version
         id: versioning
-        run: echo ::set-output name=version::${{ github.run_id }}
+        run: echo "::set-output name=version::${{ github.run_id }}"
 
       - name: Determine runtime
         id: runtime
@@ -33,14 +33,21 @@ jobs:
           else
             echo "::set-output name=runtime::linux-x64"
           fi
+        shell: bash
 
       - name: Build and publish
         run: dotnet publish -r ${{ steps.runtime.outputs.runtime }} -c Release --self-contained true -p:PublishSingleFile=true ./ContentFinder/ContentFinder.csproj
+        shell: bash
 
       - name: Determine file extension
         id: file-extension
         run: |
-          echo "::set-output name=extension::$(if [[ "${{ matrix.os }}" == "windows-latest" ]]; then echo 'exe'; else echo ''; fi)"
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            echo "::set-output name=extension::exe"
+          else
+            echo "::set-output name=extension::"
+          fi
+        shell: bash
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v2
@@ -86,5 +93,4 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./ContentFinder${{ steps.file-extension.outputs.extension }}
-          asset_name: ContentFinder${{ steps.file-extension.outputs.extension }}
-          asset_content_type: application/octet-stream
+          asset_name: ContentFinder${{ steps.file-extension.outputs.extension
