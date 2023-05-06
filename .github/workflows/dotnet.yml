@@ -73,6 +73,7 @@ jobs:
           echo "::set-output name=version::${{ steps.versioning.outputs.version }}"
 
       - name: Create release
+        id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -89,7 +90,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create-release.outputs.upload_url }}
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./ContentFinder${{ steps.file-extension.outputs.extension }}
           asset_name: ContentFinder${{ steps.file-extension.outputs.extension }}
           asset_content_type: application/octet-stream
