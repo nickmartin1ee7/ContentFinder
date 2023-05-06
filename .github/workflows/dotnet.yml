@@ -46,7 +46,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: ContentFinder
-          path: ./ContentFinder/bin/Release/net6.0/publish/ContentFinder${{ steps.file-extension.outputs.extension }}
+          path: ./ContentFinder/bin/Release/net6.0/${{ steps.runtime.outputs.runtime }}/publish/ContentFinder${{ steps.file-extension.outputs.extension }}
 
   release:
     needs: build
