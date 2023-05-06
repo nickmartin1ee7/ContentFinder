@@ -26,6 +26,7 @@ jobs:
         run: echo "::set-output name=version::${{ github.run_id }}"
 
       - name: Build and publish
+        shell: bash
         run: |
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             dotnet publish -r win-x64 -c Release --self-contained true -p:PublishSingleFile=true ./ContentFinder/ContentFinder.csproj
@@ -34,6 +35,7 @@ jobs:
           fi
 
       - name: Determine file extension
+        shell: bash
         id: file-extension
         run: |
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
@@ -47,7 +49,9 @@ jobs:
         with:
           name: ContentFinder
           path: |
-            ./ContentFinder/bin/Release/net6.0/publish/ContentFinder${{ steps.file-extension.outputs.extension }}
+            ./ContentFinder/bin/Release/net6.0/
+            ${{ matrix.os }}-x64/
+            publish/ContentFinder${{ steps.file-extension.outputs.extension }}
 
   release:
     needs: build
@@ -62,25 +66,29 @@ jobs:
         with:
           name: ContentFinder
 
-      - name: Determine next version
-        id: versioning
-        run: |
-          echo "Current version: ${{ steps.versioning.outputs.version }}"
-          echo "::set-output name=version::${{ steps.versioning.outputs.version }}"
+      - name: Get Previous tag
+        id: previoustag
+        uses: 'WyriHaximus/github-action-get-previous-tag@v1'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get next version
+        id: next
+        uses: 'WyriHaximus/github-action-next-release-version@1.0.0'
+        with:
+          version: ${{ steps.previoustag.outputs.tag }}
 
       - name: Create release
-        id: create_release
+        id: create_release_id
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v${{ steps.versioning.outputs.version }}
-          release_name: Release ${{ steps.versioning.outputs.version }}
+          tag_name: ${{ steps.next.outputs.version }}
+          release_name: Release ${{ steps.next.outputs.version }}
           body: |
             Release version ${{ steps.versioning.outputs.version }}
-          draft: false
-          prerelease: false
-
+            
       - name: Upload release asset
         uses: actions/upload-release-asset@v1
         env:
