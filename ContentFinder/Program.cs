@@ -21,6 +21,7 @@ class Program
     static async Task Main(string[] args)
     {
         Console.CancelKeyPress += OnCancelEventHandler;
+        Console.Title = "Content Finder";
 
         PrintGreeting();
 
