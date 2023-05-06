@@ -11,6 +11,7 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest]
+        runtime: [win-x64, linux-x64]
 
     steps:
     - name: Checkout code
@@ -26,7 +27,7 @@ jobs:
       run: echo ::set-output name=version::$(dotnet --version)
 
     - name: Build and publish
-      run: dotnet publish -r ${{ matrix.runtime }} -c Release --self-contained true -p:PublishSingleFile=true **/ContentFinder.csproj
+      run: dotnet publish -r ${{ matrix.runtime }} -c Release --self-contained true -p:PublishSingleFile=true ./ContentFinder/ContentFinder.csproj
 
     - name: Determine file extension
       id: file-extension
