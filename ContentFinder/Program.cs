@@ -1,6 +1,9 @@
 ﻿using System.Buffers;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text;
+
+using Humanizer;
 
 using Spectre.Console;
 
@@ -45,7 +48,9 @@ public static class Program
             Console.ReadKey();
 
             s_cts = new CancellationTokenSource();
+            var sw = new Stopwatch();
 
+            sw.Start();
             await AnsiConsole.Progress()
                 .AutoClear(true)
                 //.HideCompleted(true)
@@ -58,13 +63,14 @@ public static class Program
                     new SpinnerColumn(),
                 })
                 .StartAsync(PrimaryProcess);
+            sw.Stop();
 
             if (!s_cts.IsCancellationRequested)
             {
                 s_cts.Cancel();
             }
 
-            PrintScanFinished();
+            PrintScanFinished(sw.Elapsed);
 
             ShowResults(search, matchingFiles);
 
@@ -289,9 +295,9 @@ public static class Program
         AnsiConsole.Write(new Text($"Press any key to start over...{Environment.NewLine}", s_styleCache[Color.Cyan1]));
     }
 
-    private static void PrintScanFinished()
+    private static void PrintScanFinished(TimeSpan duration)
     {
-        AnsiConsole.Write(new Text($"Scan finished.{Environment.NewLine}", s_styleCache[Color.Cyan1]));
+        AnsiConsole.Write(new Text($"Scan finished in {duration.Humanize()} ({duration}).{Environment.NewLine}", s_styleCache[Color.Cyan1]));
     }
 
     private static void PrintPrepareToStart()
