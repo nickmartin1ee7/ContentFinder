@@ -1,6 +1,5 @@
 ﻿using System.Buffers;
 using System.Collections.Concurrent;
-using System.Linq;
 using System.Text;
 
 using Spectre.Console;
@@ -32,11 +31,13 @@ public static class Program
             s_cts.Cancel();
 
             var rootDirectoryPath = PromptUser(out var search);
+            var searchTermUpper = search.ToUpperInvariant();
+            var searchTermLower = search.ToLowerInvariant();
 
             var matchingFiles = new ConcurrentBag<(string fileName, string content)>();
             var tasks = new List<Task>();
             var directoriesToScan = new ConcurrentQueue<string>();
-            var directoriesToScanProgress = new ConcurrentDictionary<string, ProgressTask>();
+            var directoriesToScanProgress = new ConcurrentDictionary<string, ProgressTask?>();
 
             PrintPrepareToStart();
 
@@ -153,67 +154,83 @@ public static class Program
 
                                 const int bufferSize = 1024;
                                 var rentedBuffer = ArrayPool<char>.Shared.Rent(bufferSize);
+                                var peekContent = new Queue<char>();
                                 Array.Clear(rentedBuffer);
 
                                 // Search Term Index - Scoped before the while loop to resume peaking a file across multiple buffers
-                                var resumeSearchCharIndex = -1;
+                                var resumeSearchCharIndex = 0;
+                                var readBytes = -1;
+
 
                                 while (!s_cts.IsCancellationRequested
-                                    && await streamReader.ReadBlockAsync(new Memory<char>(rentedBuffer), s_cts.Token) > 0)
+                                    && (readBytes = await streamReader.ReadBlockAsync(rentedBuffer, 0, bufferSize)) > 0)
                                 {
+                                    bool isMatchInChunk = false;
+                                    var lastMatchChunkIndex = -1;
 
-                                    var currentMatchingCharacterIndex = -1;
-
-                                    // Have not found first character yet in file
-                                    if (resumeSearchCharIndex == -1)
+                                    for (int j = 0; j <= readBytes; j++)
                                     {
-                                        currentMatchingCharacterIndex = Array.IndexOf(rentedBuffer, search[0]);
-
-                                        // First character not found in chunk
-                                        if (currentMatchingCharacterIndex == -1)
+                                        if (readBytes == j)
                                         {
-                                            continue;
-                                        }
-
-                                        resumeSearchCharIndex = 0;
-                                    }
-
-                                    bool isMatchInChunk = true;
-                                    for (int j = resumeSearchCharIndex + 1; j < search.Length; j++)
-                                    {
-                                        if (rentedBuffer.Length <= j)
-                                        {
-                                            resumeSearchCharIndex = j - 1;
-                                            break;
-                                        }
-
-                                        // TODO: Parallel arrays of search term
-                                        var searchChar = search[j];
-                                        var searchCharUpper = char.ToUpperInvariant(searchChar);
-                                        var searchCharLower = char.ToLowerInvariant(searchChar);
-
-                                        var nextChar = rentedBuffer[currentMatchingCharacterIndex + j];
-                                        if (!nextChar.Equals(searchCharUpper)
-                                            && !nextChar.Equals(searchCharLower))
-                                        {
+                                            // Overflowed chunk, the next piece is in another chunk
                                             isMatchInChunk = false;
-                                            resumeSearchCharIndex = -1;
+                                            break;
+                                        }
+
+                                        var nextChar = rentedBuffer[j];
+                                        if (nextChar.Equals(searchTermUpper[resumeSearchCharIndex])
+                                            || nextChar.Equals(searchTermLower[resumeSearchCharIndex]))
+                                        {
+                                            // First match in chunk
+                                            if (peekContent.Count == 0
+                                                && j - search.Length >= 0)
+                                            {
+                                                // Add the previous peek
+                                                for (int k = 0; k < search.Length; k++)
+                                                {
+                                                    var nextRewindIndex = j - search.Length + k;
+                                                    var rewindChar = rentedBuffer[nextRewindIndex];
+                                                    EnqueueFormattedCharacter(peekContent, rewindChar);
+                                                }
+                                            }
+
+                                            peekContent.Enqueue(nextChar);
+                                            lastMatchChunkIndex = j;
+                                            resumeSearchCharIndex++;
+                                            isMatchInChunk = true;
+
+                                            // Match complete
+                                            if (resumeSearchCharIndex >= search.Length)
+                                            {
+                                                break;
+                                            }
+                                        }
+                                        else if (isMatchInChunk) // We were matching, but no longer
+                                        {
+                                            peekContent.Clear();
+                                            lastMatchChunkIndex = -1;
+                                            resumeSearchCharIndex = 0;
+                                            isMatchInChunk = false;
                                             break;
                                         }
                                     }
 
-                                    // False positive, did not match search term
+                                    // False positive, did not match search term. Keep searching chunk!
                                     if (!isMatchInChunk)
                                     {
                                         continue;
                                     }
 
-                                    // Match found, peak next contents
-                                    matchingFiles.Add((file, LimitedContentPeek(currentMatchingCharacterIndex, search, rentedBuffer)));
-                                    foundMatches = true;
+                                    // Add the forward peek
+                                    for (int x = lastMatchChunkIndex + 1; x < readBytes && peekContent.Count < search.Length * 3; x++)
+                                    {
+                                        var forwardChar = rentedBuffer[x];
+                                        EnqueueFormattedCharacter(peekContent, forwardChar);
+                                    }
 
-                                    // Reset character resume point for file search
-                                    resumeSearchCharIndex = -1;
+                                    var resultPeek = string.Join("", peekContent);
+                                    matchingFiles.Add((file, resultPeek));
+                                    foundMatches = true;
                                     break;
                                 }
 
@@ -263,6 +280,17 @@ public static class Program
         }
     }
 
+    private static void EnqueueFormattedCharacter(Queue<char> characterQueue, char unformattedChar)
+    {
+        characterQueue.Enqueue(unformattedChar switch
+        {
+            '\r' => '.',
+            '\n' => '.',
+            '\t' => '.',
+            _ => unformattedChar
+        });
+    }
+
     private static void PrintRestartPrompt()
     {
         AnsiConsole.Write(new Text($"Press any key to start over...{Environment.NewLine}", s_styleCache[Color.Cyan1]));
@@ -306,9 +334,7 @@ public static class Program
     {
         AnsiConsole.Write(new FigletText("Content Finder"));
         AnsiConsole.Write(new Paragraph(
-            "This program will recursively scan every sub-directory and read every files' contents in search for a specific string. " +
-            "As such, this can be a resource intensive application. " +
-            "Files above 1 GB are skipped. " +
+            "This program will recursively scan every sub-directory and read every files' contents in search for a specific string." +
             $"{Environment.NewLine}", s_styleCache[Color.DarkOrange]));
     }
 
@@ -321,22 +347,6 @@ public static class Program
         {
             Environment.Exit(0);
         }
-    }
-
-    private static string LimitedContentPeek(int startIdx, string search, char[] buffer)
-    {
-        int maxLen = search.Length * 2;
-        int endIndex = startIdx + search.Length;
-
-        // Calculate the start and end indices for the substring to be returned.
-        int startPeek = Math.Max(0, startIdx - maxLen / 2);
-        int endPeek = Math.Min(buffer.Length, endIndex + maxLen / 2);
-
-        var result = string
-            .Join(string.Empty, buffer[startPeek..endPeek])
-            .Replace(' ', '.'); // Spaces are now dots
-
-        return result;
     }
 
     private static void ShowResults(string searchString, IEnumerable<(string, string)> matchingFiles)
