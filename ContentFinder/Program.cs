@@ -1,4 +1,6 @@
-﻿using System.Collections.Concurrent;
+﻿using System.Buffers;
+using System.Collections.Concurrent;
+using System.Linq;
 using System.Text;
 
 using Spectre.Console;
@@ -72,10 +74,13 @@ public static class Program
             {
                 // Enqueue root directory
                 directoriesToScan.Enqueue(rootDirectoryPath);
+                directoriesToScanProgress.TryAdd(rootDirectoryPath, null);
 
                 while (!s_cts.IsCancellationRequested
                     && directoriesToScan.TryDequeue(out var currentDirectory))
                 {
+
+                    // Find subdirectories
                     tasks.Add(Task.Run(() =>
                     {
                         try
@@ -106,8 +111,10 @@ public static class Program
                         }
                     }));
 
+                    // Scan contents of currently dequeued directory
                     tasks.Add(Task.Run(async () =>
                     {
+                        // Don't scan already in-progress directories
                         if (!directoriesToScanProgress.TryGetValue(currentDirectory, out var directoryProgress))
                         {
                             return;
@@ -138,25 +145,79 @@ public static class Program
                                 const long GIGABYTE = 1_073_741_824;
                                 if (fileInfo.Length > GIGABYTE)
                                 {
-                                    AnsiConsole.Write(new Text($"Skipping {fileInfo.FullName}. Too big!{Environment.NewLine}", s_styleCache[Color.Grey]));
-                                    continue;
+                                    AnsiConsole.Write(new Text($"Analyzing large file {fileInfo.FullName}...", s_styleCache[Color.Grey]));
+                                    //continue;
                                 }
 
                                 using var streamReader = new StreamReader(file);
 
-                                while (!s_cts.IsCancellationRequested && await streamReader.ReadLineAsync() is { } line)
+                                const int bufferSize = 1024;
+                                var rentedBuffer = ArrayPool<char>.Shared.Rent(bufferSize);
+                                Array.Clear(rentedBuffer);
+
+                                // Search Term Index - Scoped before the while loop to resume peaking a file across multiple buffers
+                                var resumeSearchCharIndex = -1;
+
+                                while (!s_cts.IsCancellationRequested
+                                    && await streamReader.ReadBlockAsync(new Memory<char>(rentedBuffer), s_cts.Token) > 0)
                                 {
-                                    if (!line.Contains(search, StringComparison.Ordinal))
+
+                                    var currentMatchingCharacterIndex = -1;
+
+                                    // Have not found first character yet in file
+                                    if (resumeSearchCharIndex == -1)
+                                    {
+                                        currentMatchingCharacterIndex = Array.IndexOf(rentedBuffer, search[0]);
+
+                                        // First character not found in chunk
+                                        if (currentMatchingCharacterIndex == -1)
+                                        {
+                                            continue;
+                                        }
+
+                                        resumeSearchCharIndex = 0;
+                                    }
+
+                                    bool isMatchInChunk = true;
+                                    for (int j = resumeSearchCharIndex + 1; j < search.Length; j++)
+                                    {
+                                        if (rentedBuffer.Length <= j)
+                                        {
+                                            resumeSearchCharIndex = j - 1;
+                                            break;
+                                        }
+
+                                        // TODO: Parallel arrays of search term
+                                        var searchChar = search[j];
+                                        var searchCharUpper = char.ToUpperInvariant(searchChar);
+                                        var searchCharLower = char.ToLowerInvariant(searchChar);
+
+                                        var nextChar = rentedBuffer[currentMatchingCharacterIndex + j];
+                                        if (!nextChar.Equals(searchCharUpper)
+                                            && !nextChar.Equals(searchCharLower))
+                                        {
+                                            isMatchInChunk = false;
+                                            resumeSearchCharIndex = -1;
+                                            break;
+                                        }
+                                    }
+
+                                    // False positive, did not match search term
+                                    if (!isMatchInChunk)
                                     {
                                         continue;
                                     }
 
-                                    // Match found, peak contents
-                                    matchingFiles.Add((file, LimitedContentPeek(search, line)));
+                                    // Match found, peak next contents
+                                    matchingFiles.Add((file, LimitedContentPeek(currentMatchingCharacterIndex, search, rentedBuffer)));
                                     foundMatches = true;
+
+                                    // Reset character resume point for file search
+                                    resumeSearchCharIndex = -1;
                                     break;
                                 }
 
+                                ArrayPool<char>.Shared.Return(rentedBuffer);
                                 directoryProgress.Increment(i / (double)files.Length * 100);
                             }
                         }
@@ -262,18 +323,19 @@ public static class Program
         }
     }
 
-    private static string LimitedContentPeek(string search, string line)
+    private static string LimitedContentPeek(int startIdx, string search, char[] buffer)
     {
         int maxLen = search.Length * 2;
-        int startIndex = line.IndexOf(search, StringComparison.InvariantCultureIgnoreCase);
-
-        int endIndex = startIndex + search.Length;
+        int endIndex = startIdx + search.Length;
 
         // Calculate the start and end indices for the substring to be returned.
-        int startPeek = Math.Max(0, startIndex - maxLen / 2);
-        int endPeek = Math.Min(line.Length, endIndex + maxLen / 2);
+        int startPeek = Math.Max(0, startIdx - maxLen / 2);
+        int endPeek = Math.Min(buffer.Length, endIndex + maxLen / 2);
 
-        var result = line[startPeek..endPeek].Replace(' ', '.');
+        var result = string
+            .Join(string.Empty, buffer[startPeek..endPeek])
+            .Replace(' ', '.'); // Spaces are now dots
+
         return result;
     }
 
