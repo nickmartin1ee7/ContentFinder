@@ -5,7 +5,7 @@ using Spectre.Console;
 
 namespace ContentFinder;
 
-class Program
+public static class Program
 {
     private static CancellationTokenSource s_cts = new();
     private static Dictionary<Color, Style> s_styleCache = new()
@@ -18,7 +18,7 @@ class Program
         { Color.Red, new(Color.Red) },
     };
 
-    static async Task Main(string[] args)
+    public static async Task Main(string[] args)
     {
         Console.CancelKeyPress += OnCancelEventHandler;
         Console.Title = "Content Finder";
@@ -42,21 +42,51 @@ class Program
 
             s_cts = new CancellationTokenSource();
 
-            async Task PrimaryProcess(ProgressContext ctx)
+            await AnsiConsole.Progress()
+                .AutoClear(true)
+                //.HideCompleted(true)
+                .Columns(new ProgressColumn[]
+                {
+                    new TaskDescriptionColumn(),
+                    new ProgressBarColumn(),
+                    new PercentageColumn(),
+                    new ElapsedTimeColumn(),
+                    new SpinnerColumn(),
+                })
+                .StartAsync(PrimaryProcess);
+
+            if (!s_cts.IsCancellationRequested)
+            {
+                s_cts.Cancel();
+            }
+
+            PrintScanFinished();
+
+            ShowResults(search, matchingFiles);
+
+            PrintRestartPrompt();
+
+            Console.ReadKey();
+
+            Task PrimaryProcess(ProgressContext ctx)
             {
                 // Enqueue root directory
                 directoriesToScan.Enqueue(rootDirectoryPath);
 
-                while (!s_cts.IsCancellationRequested && directoriesToScan.TryDequeue(out var currentDirectory))
+                while (!s_cts.IsCancellationRequested
+                    && directoriesToScan.TryDequeue(out var currentDirectory))
                 {
-                    tasks.Add(Task.Run(async () =>
+                    tasks.Add(Task.Run(() =>
                     {
                         try
                         {
                             var subDirectories = Directory.EnumerateDirectories(currentDirectory);
                             foreach (var subDirectory in subDirectories)
                             {
-                                if (s_cts.IsCancellationRequested) break;
+                                if (s_cts.IsCancellationRequested)
+                                {
+                                    break;
+                                }
 
                                 directoriesToScan.Enqueue(subDirectory);
                                 directoriesToScanProgress.TryAdd(subDirectory, null);
@@ -79,7 +109,9 @@ class Program
                     tasks.Add(Task.Run(async () =>
                     {
                         if (!directoriesToScanProgress.TryGetValue(currentDirectory, out var directoryProgress))
+                        {
                             return;
+                        }
 
                         _ = directoriesToScanProgress.TryRemove(currentDirectory, out _);
                         _ = directoriesToScanProgress.TryAdd(currentDirectory, directoryProgress = ctx.AddTask(currentDirectory));
@@ -94,7 +126,10 @@ class Program
 
                             for (var i = 0; i < files.Length; i++)
                             {
-                                if (s_cts.IsCancellationRequested) break;
+                                if (s_cts.IsCancellationRequested)
+                                {
+                                    break;
+                                }
 
                                 var file = files[i];
 
@@ -111,9 +146,13 @@ class Program
 
                                 while (!s_cts.IsCancellationRequested && await streamReader.ReadLineAsync() is { } line)
                                 {
-                                    if (!line.Contains(search, StringComparison.Ordinal)) continue;
+                                    if (!line.Contains(search, StringComparison.Ordinal))
+                                    {
+                                        continue;
+                                    }
 
-                                    matchingFiles.Add((file, LimitContentPeek(search, line)));
+                                    // Match found, peak contents
+                                    matchingFiles.Add((file, LimitedContentPeek(search, line)));
                                     foundMatches = true;
                                     break;
                                 }
@@ -157,31 +196,9 @@ class Program
                     Task.WaitAll(tasks.ToArray());
                     tasks.Clear();
                 }
+
+                return Task.CompletedTask;
             }
-
-            await AnsiConsole.Progress()
-                .AutoClear(true)
-                //.HideCompleted(true)
-                .Columns(new ProgressColumn[]
-                {
-                    new TaskDescriptionColumn(),
-                    new ProgressBarColumn(),
-                    new PercentageColumn(),
-                    new ElapsedTimeColumn(),
-                    new SpinnerColumn(),
-                })
-                .StartAsync(PrimaryProcess);
-
-            if (!s_cts.IsCancellationRequested)
-                s_cts.Cancel();
-
-            PrintScanFinished();
-
-            ShowResults(search, matchingFiles);
-
-            PrintRestartPrompt();
-
-            Console.ReadKey();
         }
     }
 
@@ -239,10 +256,13 @@ class Program
         e.Cancel = !s_cts.IsCancellationRequested; // Don't terminate if token is in use; we need to clean-up.
         s_cts.Cancel();
 
-        if (!e.Cancel) Environment.Exit(0);
+        if (!e.Cancel)
+        {
+            Environment.Exit(0);
+        }
     }
 
-    private static string LimitContentPeek(string search, string line)
+    private static string LimitedContentPeek(string search, string line)
     {
         int maxLen = search.Length * 2;
         int startIndex = line.IndexOf(search, StringComparison.InvariantCultureIgnoreCase);
