@@ -155,7 +155,6 @@ public static class Program
                                 var resumeSearchCharIndex = 0;
                                 var readBytes = -1;
 
-
                                 while (!s_cts.IsCancellationRequested
                                     && (readBytes = await streamReader.ReadBlockAsync(rentedBuffer, 0, bufferSize)) > 0)
                                 {
