@@ -33,6 +33,7 @@ public static class Program
             var rootDirectoryPath = PromptUser(out var search);
             var searchTermUpper = search.ToUpperInvariant();
             var searchTermLower = search.ToLowerInvariant();
+            var maxPeekSize = search.Length * 3;
 
             var matchingFiles = new ConcurrentBag<(string fileName, string content)>();
             var tasks = new List<Task>();
@@ -147,7 +148,7 @@ public static class Program
 
                                 const int bufferSize = 1024;
                                 var rentedBuffer = ArrayPool<char>.Shared.Rent(bufferSize);
-                                var peekContent = new Queue<char>();
+                                var peekContent = new Queue<char>(maxPeekSize);
                                 Array.Clear(rentedBuffer);
 
                                 // Search Term Index - Scoped before the while loop to resume peaking a file across multiple buffers
@@ -215,7 +216,7 @@ public static class Program
                                     }
 
                                     // Add the forward peek
-                                    for (int x = lastMatchChunkIndex + 1; x < readBytes && peekContent.Count < search.Length * 3; x++)
+                                    for (int x = lastMatchChunkIndex + 1; x < readBytes && peekContent.Count < maxPeekSize; x++)
                                     {
                                         var forwardChar = rentedBuffer[x];
                                         EnqueueFormattedCharacter(peekContent, forwardChar);
