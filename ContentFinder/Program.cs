@@ -143,13 +143,6 @@ public static class Program
 
                                 var fileInfo = new FileInfo(file);
 
-                                const long GIGABYTE = 1_073_741_824;
-                                if (fileInfo.Length > GIGABYTE)
-                                {
-                                    AnsiConsole.Write(new Text($"Analyzing large file {fileInfo.FullName}...", s_styleCache[Color.Grey]));
-                                    //continue;
-                                }
-
                                 using var streamReader = new StreamReader(file);
 
                                 const int bufferSize = 1024;
