@@ -50,34 +50,11 @@ jobs:
         run: |
           Get-ChildItem -Recurse
 
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: ContentFinder
-          path: ./ContentFinder/bin/Release/net8.0/${{ matrix.os == 'windows-latest' && 'win-x64' || 'linux-x64' }}/publish
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Download release artifact
-        uses: actions/download-artifact@v4
-        with:
-            name: ContentFinder
-
-      - name: Print folder structure
-        shell: pwsh
-        run: |
-          Get-ChildItem -Recurse
-
       - name: GitHub Publish - Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: release
-          name: Release v${{ github.run_number }}
+          tag_name: "release-${{ matrix.os }}"
+          name: "Release v${{ github.run_number }} (${{ matrix.os }})"
           draft: false
           prerelease: true
+          files: ContentFinder${{ steps.file-extension.outputs.extension }}
