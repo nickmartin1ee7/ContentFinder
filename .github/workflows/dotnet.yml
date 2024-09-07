@@ -65,12 +65,10 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Download release artifact
-        uses: actions/download-artifact@v2
-        with:
-          name: ContentFinder${{ steps.file-extension.outputs.extension }}
+        uses: actions/download-artifact@v4
 
       - name: GitHub Publish - Release
-        uses: softprops/action-gh-release@v1      
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.workflow }}
           name: Release v${{ github.run_number }}
