@@ -45,6 +45,11 @@ jobs:
             echo "::set-output name=extension::"
           fi
 
+      - name: Print folder structure
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse
+
       - name: Upload release artifact
         uses: actions/upload-artifact@v2
         with:
