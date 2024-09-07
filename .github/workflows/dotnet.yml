@@ -49,10 +49,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: ContentFinder
-          path: |
-            ./ContentFinder/bin/Release/net8.0/
-            ${{ matrix.os }}-x64/
-            publish/ContentFinder${{ steps.file-extension.outputs.extension }}
+          path: ./ContentFinder/bin/Release/net8.0/${{ matrix.os }}-x64/publish/ContentFinder${{ steps.file-extension.outputs.extension }}
 
   release:
     needs: build
@@ -74,5 +71,4 @@ jobs:
           name: Release v${{ github.run_number }}
           draft: false
           prerelease: true
-          files:
-            ContentFinder${{ steps.file-extension.outputs.extension }}
+          files: ContentFinder${{ steps.file-extension.outputs.extension }}
