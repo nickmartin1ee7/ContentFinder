@@ -50,7 +50,7 @@ jobs:
         with:
           name: ContentFinder
           path: |
-            ./ContentFinder/bin/Release/net6.0/
+            ./ContentFinder/bin/Release/net8.0/
             ${{ matrix.os }}-x64/
             publish/ContentFinder${{ steps.file-extension.outputs.extension }}
 
