@@ -51,10 +51,10 @@ jobs:
           Get-ChildItem -Recurse
 
       - name: Upload release artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ContentFinder
-          path: ./ContentFinder/bin/Release/net8.0/${{ matrix.os == 'windows-latest' && 'win-x64' || 'linux-x64' }}/publish/ContentFinder${{ steps.file-extension.outputs.extension }}
+          path: ./ContentFinder/bin/Release/net8.0/${{ matrix.os == 'windows-latest' && 'win-x64' || 'linux-x64' }}/publish
 
   release:
     needs: build
@@ -81,4 +81,3 @@ jobs:
           name: Release v${{ github.run_number }}
           draft: false
           prerelease: true
-          files: ContentFinder${{ steps.file-extension.outputs.extension }}
