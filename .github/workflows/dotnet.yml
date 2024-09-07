@@ -57,4 +57,4 @@ jobs:
           name: "Release v${{ github.run_number }} (${{ matrix.os }})"
           draft: false
           prerelease: true
-          files: ContentFinder${{ steps.file-extension.outputs.extension }}
+          files: ./ContentFinder/bin/Release/net8.0/${{ matrix.os == 'windows-latest' && 'win-x64' || 'linux-x64' }}/publish/ContentFinder${{ steps.file-extension.outputs.extension }}
