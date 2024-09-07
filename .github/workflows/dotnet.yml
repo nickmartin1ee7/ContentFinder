@@ -50,17 +50,11 @@ jobs:
         run: |
           Get-ChildItem -Recurse
 
-      - name: Debug file path
-        shell: bash
-        run: |
-          echo "File path: ${{ github.workspace }}/ContentFinder/bin/Release/net8.0/${{ matrix.os }}-x64/publish/ContentFinder${{ steps.file-extension.outputs.extension }}"
-          ls ${{ github.workspace }}/ContentFinder/bin/Release/net8.0/${{ matrix.os }}-x64/publish/
-
       - name: Upload release artifact
         uses: actions/upload-artifact@v2
         with:
           name: ContentFinder
-          path: ${{ github.workspace }}/ContentFinder/bin/Release/net8.0/${{ matrix.os }}-x64/publish/ContentFinder${{ steps.file-extension.outputs.extension }}
+          path: ./ContentFinder/bin/Release/net8.0/${{ matrix.os == 'windows-latest' && 'win-x64' || 'linux-x64' }}/publish/ContentFinder${{ steps.file-extension.outputs.extension }}
 
   release:
     needs: build
