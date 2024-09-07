@@ -66,6 +66,8 @@ jobs:
 
       - name: Download release artifact
         uses: actions/download-artifact@v4
+        with:
+            name: ContentFinder
 
       - name: Print folder structure
         shell: pwsh
